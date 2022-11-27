@@ -62,23 +62,17 @@ defmodule AntlHttpClient do
         },
         opts \\ []
       ) do
-    user_agent = Keyword.get(opts, :user_agent)
-
-    request_headers =
-      if user_agent, do: %{"user-agent" => user_agent} |> Map.merge(headers), else: headers
-
     %{
       request_method: method,
       request_url: resource,
-      request_headers: request_headers,
+      request_headers: headers,
       request_body: body,
       requested_at: DateTime.utc_now()
     }
     |> send_request(finch_instance, api_provider,
       obfuscate_keys: Keyword.get(opts, :obfuscate_keys, []),
       logger: Keyword.get(opts, :logger, @default_logger),
-      receive_timeout: Keyword.get(opts, :receive_timeout, @default_receive_timeout),
-      user_agent: user_agent
+      receive_timeout: Keyword.get(opts, :receive_timeout, @default_receive_timeout)
     )
     |> handle_response()
   end

@@ -42,24 +42,6 @@ defmodule AntlHttpClientTest.HttpClientTest do
                })
     end
 
-    test "adds user_agent if given", %{bypass: bypass} do
-      params = %{"data" => "data"}
-      user_agent = "App/1.0; +(https://example.net/app)"
-
-      Bypass.expect_once(bypass, "POST", "/test", fn conn ->
-        assert Plug.Conn.get_req_header(conn, "user-agent") == [user_agent]
-        Plug.Conn.resp(conn, 200, Jason.encode!(%{"data" => "data"}))
-      end)
-
-      assert {:ok, _} =
-               AntlHttpClient.request(InsecureFinch, "api_provider", %{
-                 method: :post,
-                 resource: "#{base_url()}/test",
-                 headers: %{"content-type" => "application/json", "user-agent" => user_agent},
-                 body: params
-               })
-    end
-
     test "bad_request error", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/test", fn conn ->
         Plug.Conn.resp(conn, 400, "bad_request")
