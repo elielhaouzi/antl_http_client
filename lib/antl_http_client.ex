@@ -214,12 +214,12 @@ defmodule AntlHttpClient do
         obfuscate(request.request_body, obfuscate_keys)
       )
 
-    obfuscted_request_headers = obfuscate(request.request_headers, obfuscate_keys)
+    obfuscated_request_headers = obfuscate(request.request_headers, obfuscate_keys)
 
     %{
       request
       | request_body: obfuscated_request_body,
-        request_headers: obfuscted_request_headers
+        request_headers: obfuscated_request_headers
     }
   end
 
