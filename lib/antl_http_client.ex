@@ -242,6 +242,9 @@ defmodule AntlHttpClient do
       {key, val} when is_map(val) ->
         {key, obfuscate(val, obfuscate_keys)}
 
+      {key, val} when is_list(val) ->
+        {key, Enum.map(val, &obfuscate(&1, obfuscate_keys))}
+
       {key, val} when is_binary(val) or is_integer(val) ->
         {key, if(key in obfuscate_keys, do: obfuscate_value(val), else: val)}
     end)
