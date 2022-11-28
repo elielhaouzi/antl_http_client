@@ -162,13 +162,15 @@ defmodule AntlHttpClientTest.HttpClientTest do
       assert query.changes[:response_body] == inspect(obfuscated_response_body)
     end
 
-    test "when obfuscate key has a nil value, keep the nil", %{bypass: bypass} do
-      params = %{"data" => %{"secret" => "secret", "nil_secret" => nil}}
+    test "obfuscate nil values, binary, and integer", %{bypass: bypass} do
+      params = %{
+        "data" => %{"binary" => "binary", "nil" => nil, "integer" => 123}
+      }
 
       Bypass.expect_once(bypass, "POST", "/test", fn conn ->
         encoded_params = Jason.encode!(params)
         {:ok, ^encoded_params, conn} = conn |> Plug.Conn.read_body()
-        Plug.Conn.resp(conn, 200, %{"data" => %{"secret" => "secret"}} |> Jason.encode!())
+        Plug.Conn.resp(conn, 200, %{"data" => "data"} |> Jason.encode!())
       end)
 
       assert {:ok, _} =
@@ -181,13 +183,17 @@ defmodule AntlHttpClientTest.HttpClientTest do
                    headers: %{"authorization" => "token", "content-type" => "application/json"},
                    body: params
                  },
-                 obfuscate_keys: ["secret", "nil_secret"],
+                 obfuscate_keys: ["binary", "nil", "integer"],
                  logger: :app_recorder
                )
 
       obfuscated_request_body =
         Jason.encode!(%{
-          "data" => %{"nil_secret" => nil, "secret" => "se#{String.duplicate("*", 20)}"}
+          "data" => %{
+            "nil" => nil,
+            "binary" => "bi#{String.duplicate("*", 20)}",
+            "integer" => "12#{String.duplicate("*", 20)}"
+          }
         })
 
       assert_received {:insert, query}
