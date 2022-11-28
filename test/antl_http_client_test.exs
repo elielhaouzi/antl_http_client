@@ -96,7 +96,7 @@ defmodule AntlHttpClientTest.HttpClientTest do
                })
     end
 
-    test "when app_recorder is enabled, records outgoing requests with `authorization` and obfuscated_keys obfuscated",
+    test "when app_recorder is enabled, records outgoing requests with obfuscated_keys obfuscated",
          %{bypass: bypass} do
       params = %{"data" => "data", "secret" => "secret"}
       response = %{"data" => "data", "secret" => "secret"}
@@ -117,28 +117,14 @@ defmodule AntlHttpClientTest.HttpClientTest do
                    headers: %{"authorization" => "token", "content-type" => "application/json"},
                    body: params
                  },
-                 obfuscate_keys: ["secret", "authorization"],
                  logger: :app_recorder
                )
 
-      obfuscated_request_body =
-        Jason.encode!(%{
-          "secret" => "se#{String.duplicate("*", 20)}",
-          "data" => "data"
-        })
-
       assert_received {:insert, query}
-      assert query.fields[:request_body] == obfuscated_request_body
-      assert %{"authorization" => authorization} = query.fields[:request_headers]
-      assert authorization == "to#{String.duplicate("*", 20)}"
-
-      obfuscated_response_body = %{
-        "secret" => "se#{String.duplicate("*", 20)}",
-        "data" => "data"
-      }
+      assert query.fields[:request_body] == Jason.encode!(params)
 
       assert_received {:update, query}
-      assert query.changes[:response_body] == inspect(obfuscated_response_body)
+      assert query.changes[:response_body] == inspect(response)
     end
 
     test "recursively obfuscate keys", %{bypass: bypass} do
@@ -174,6 +160,38 @@ defmodule AntlHttpClientTest.HttpClientTest do
       obfuscated_response_body = %{"data" => %{"secret" => "se#{String.duplicate("*", 20)}"}}
       assert_received {:update, query}
       assert query.changes[:response_body] == inspect(obfuscated_response_body)
+    end
+
+    test "when obfuscate key has a nil value, keep the nil", %{bypass: bypass} do
+      params = %{"data" => %{"secret" => "secret", "nil_secret" => nil}}
+
+      Bypass.expect_once(bypass, "POST", "/test", fn conn ->
+        encoded_params = Jason.encode!(params)
+        {:ok, ^encoded_params, conn} = conn |> Plug.Conn.read_body()
+        Plug.Conn.resp(conn, 200, %{"data" => %{"secret" => "secret"}} |> Jason.encode!())
+      end)
+
+      assert {:ok, _} =
+               AntlHttpClient.request(
+                 InsecureFinch,
+                 "api_provider",
+                 %{
+                   method: :post,
+                   resource: "#{base_url()}/test",
+                   headers: %{"authorization" => "token", "content-type" => "application/json"},
+                   body: params
+                 },
+                 obfuscate_keys: ["secret", "nil_secret"],
+                 logger: :app_recorder
+               )
+
+      obfuscated_request_body =
+        Jason.encode!(%{
+          "data" => %{"nil_secret" => nil, "secret" => "se#{String.duplicate("*", 20)}"}
+        })
+
+      assert_received {:insert, query}
+      assert query.fields[:request_body] == obfuscated_request_body
     end
 
     test "when the enable_logging_via_app_recorder? is disabled, do not record the outgoing requests",
