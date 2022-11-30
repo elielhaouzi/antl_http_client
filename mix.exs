@@ -28,7 +28,7 @@ defmodule AntlHttpClient.MixProject do
     [
       {:finch, "~> 0.8.0"},
       {:bypass, "~> 2.1.0", only: :test},
-      {:app_recorder, git: "https://github.com/annatel/app_recorder.git", tag: "0.3.8"},
+      {:app_recorder, "~> 0.4", [env: :prod, hex: "app_recorder", repo: "hexpm"]},
       {:antl_utils_ecto, "~> 2.8"},
       {:antl_utils_elixir, "~> 1.4"}
     ]
