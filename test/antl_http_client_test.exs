@@ -44,10 +44,10 @@ defmodule AntlHttpClientTest.HttpClientTest do
 
     test "bad_request error", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/test", fn conn ->
-        Plug.Conn.resp(conn, 400, "bad_request")
+        Plug.Conn.resp(conn, 400, Jason.encode!(%{}))
       end)
 
-      assert {:error, "bad_request"} ==
+      assert {:error, {400, %{}}} ==
                AntlHttpClient.request(
                  InsecureFinch,
                  "api_provider",
@@ -58,10 +58,10 @@ defmodule AntlHttpClientTest.HttpClientTest do
 
     test "returns the error message if there is one", %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/test", fn conn ->
-        Plug.Conn.resp(conn, 403, Jason.encode!(%{"error" => "the error"}))
+        Plug.Conn.resp(conn, 403, Jason.encode!(%{"result" => "bad_request"}))
       end)
 
-      assert {:error, "the error"} ==
+      assert {:error, {403, %{"result" => "bad_request"}}} ==
                AntlHttpClient.request(
                  InsecureFinch,
                  "api_provider",
@@ -87,13 +87,35 @@ defmodule AntlHttpClientTest.HttpClientTest do
     test "connection layer error", %{bypass: bypass} do
       Bypass.down(bypass)
 
-      assert {:error, "connection_refused"} =
+      assert {:error, "connection refused"} =
                AntlHttpClient.request(InsecureFinch, "api_provider", %{
                  method: :post,
                  resource: "#{base_url()}/test",
                  headers: headers(),
                  body: %{}
                })
+    end
+
+    test "timeout error", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/test", fn conn ->
+        Process.sleep(5)
+        Plug.Conn.resp(conn, 200, Jason.encode!(%{"data" => "data"}))
+      end)
+
+      assert {:error, "timeout"} =
+               AntlHttpClient.request(
+                 InsecureFinch,
+                 "api_provider",
+                 %{
+                   method: :post,
+                   resource: "#{base_url()}/test",
+                   headers: headers(),
+                   body: %{}
+                 },
+                 receive_timeout: 1
+               )
+
+      Bypass.pass(bypass)
     end
 
     test "when app_recorder is enabled, records outgoing requests with obfuscated_keys obfuscated",
@@ -248,7 +270,8 @@ defmodule AntlHttpClientTest.HttpClientTest do
     end
 
     test "ssl" do
-      assert {:error, "unknown_error"} =
+      assert {:error,
+              "TLS client: In state certify at ssl_handshake.erl:2098 generated CLIENT ALERT: Fatal - Unknown CA\n"} =
                AntlHttpClient.request(
                  SecureFinch,
                  "api_provider",

@@ -50,7 +50,7 @@ defmodule AntlHttpClient do
             required(:body) => map
           },
           keyword
-        ) :: {:ok, map | binary} | {:error, binary}
+        ) :: {:ok, map | binary} | {:error, binary | {status :: integer, response_body :: any}}
   def request(
         finch_instance,
         api_provider,
@@ -123,27 +123,11 @@ defmodule AntlHttpClient do
       %{success: true, response_body: response_body} ->
         {:ok, response_body}
 
-      %{client_error_message: "connection refused"} ->
-        {:error, "connection_refused"}
+      %{client_error_message: client_error_message} when is_binary(client_error_message) ->
+        {:error, client_error_message}
 
-      %{client_error_message: "timeout"} ->
-        {:error, "timeout"}
-
-      %{response_http_status: status, response_body: %{"error" => error}}
-      when status in 400..499 and is_binary(error) ->
-        {:error, error}
-
-      %{response_http_status: 400} ->
-        {:error, "bad_request"}
-
-      %{response_http_status: 401} ->
-        {:error, "unauthorized"}
-
-      %{response_http_status: 403} ->
-        {:error, "forbidden"}
-
-      %{response_http_status: 404} ->
-        {:error, "not_found"}
+      %{response_http_status: status, response_body: response_body} when status in 400..499 ->
+        {:error, {status, response_body}}
 
       %{response_http_status: status} when status >= 500 ->
         {:error, "server_error"}
