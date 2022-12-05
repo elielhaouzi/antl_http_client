@@ -270,8 +270,7 @@ defmodule AntlHttpClientTest.HttpClientTest do
     end
 
     test "ssl" do
-      assert {:error,
-              "TLS client: In state certify at ssl_handshake.erl:2098 generated CLIENT ALERT: Fatal - Unknown CA\n"} =
+      assert {:error, error} =
                AntlHttpClient.request(
                  SecureFinch,
                  "api_provider",
@@ -285,6 +284,7 @@ defmodule AntlHttpClientTest.HttpClientTest do
                  allow_insecure?: false
                )
 
+      assert error =~ ~r/CLIENT ALERT: Fatal - Unknown CA/
       assert_received {:update, query}
       %{client_error_message: client_error_message} = query.changes |> Enum.into(%{})
       assert client_error_message =~ ~r/CLIENT ALERT: Fatal - Unknown CA/
