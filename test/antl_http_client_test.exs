@@ -186,7 +186,7 @@ defmodule AntlHttpClientTest.HttpClientTest do
 
     test "obfuscate nil values, binary, and integer", %{bypass: bypass} do
       params = %{
-        "data" => %{"binary" => "binary", "nil" => nil, "integer" => 123}
+        "data" => %{"binary" => "binary", "empty_binary" => "", "nil" => nil, "integer" => 123}
       }
 
       Bypass.expect_once(bypass, "POST", "/test", fn conn ->
@@ -205,7 +205,7 @@ defmodule AntlHttpClientTest.HttpClientTest do
                    headers: %{"authorization" => "token", "content-type" => "application/json"},
                    body: params
                  },
-                 obfuscate_keys: ["binary", "nil", "integer"],
+                 obfuscate_keys: ["binary", "empty_binary", "nil", "integer"],
                  logger: :app_recorder
                )
 
@@ -214,6 +214,7 @@ defmodule AntlHttpClientTest.HttpClientTest do
           "data" => %{
             "nil" => nil,
             "binary" => "bi#{String.duplicate("*", 20)}",
+            "empty_binary" => "",
             "integer" => "12#{String.duplicate("*", 20)}"
           }
         })

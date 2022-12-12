@@ -223,6 +223,9 @@ defmodule AntlHttpClient do
       {key, nil} ->
         {key, nil}
 
+      {key, ""} ->
+        {key, ""}
+
       {key, val} when is_map(val) ->
         {key, obfuscate(val, obfuscate_keys)}
 
