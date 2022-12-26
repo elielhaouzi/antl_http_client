@@ -50,7 +50,7 @@ defmodule AntlHttpClient do
             required(:body) => map
           },
           keyword
-        ) :: {:ok, map | binary} | {:error, binary | {status :: integer, response_body :: any}}
+        ) :: {:ok, any} | {:error, binary | {status :: integer, response_body :: any}}
   def request(
         finch_instance,
         api_provider,
