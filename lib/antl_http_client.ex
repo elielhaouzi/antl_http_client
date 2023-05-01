@@ -47,40 +47,51 @@ defmodule AntlHttpClient do
             required(:method) => atom,
             required(:resource) => binary,
             required(:headers) => map,
-            required(:body) => map
+            optional(:body) => map,
+            optional(:query_params) => map
           },
           keyword
         ) :: {:ok, any} | {:error, binary | {status :: integer, response_body :: any}}
   def request(
         finch_instance,
-        api_provider,
+        api_service_name,
         %{
           method: method,
           resource: resource,
-          headers: %{"content-type" => _} = headers,
-          body: %{} = body
-        },
+          headers: %{"content-type" => _} = headers
+        } = request_params,
         opts \\ []
       ) do
+    query = request_params |> Map.get(:query_params) |> maybe_encode_query()
+    url = build_request_url(resource, query)
+
     %{
       request_method: method,
-      request_url: resource,
+      request_url: url,
       request_headers: headers,
-      request_body: body,
+      request_body: Map.get(request_params, :body),
+      request_query: query,
       requested_at: DateTime.utc_now()
     }
-    |> send_request(finch_instance, api_provider,
-      obfuscate_keys: Keyword.get(opts, :obfuscate_keys, []),
+    |> send_request(finch_instance, api_service_name,
+      obfuscate_request_keys: Keyword.get(opts, :obfuscate_request_keys, []),
+      obfuscate_response_keys: Keyword.get(opts, :obfuscate_response_keys, []),
       logger: Keyword.get(opts, :logger, @default_logger),
       receive_timeout: Keyword.get(opts, :receive_timeout, @default_receive_timeout)
     )
     |> handle_response()
   end
 
-  defp send_request(request, finch_instance, api_provider, opts) do
+  defp maybe_encode_query(nil), do: nil
+  defp maybe_encode_query(query_params), do: URI.encode_query(query_params)
+
+  defp build_request_url(resource, nil), do: resource
+  defp build_request_url(resource, query) when is_binary(query), do: "#{resource}?#{query}"
+
+  defp send_request(request, finch_instance, api_service_name, opts) do
     logger = Keyword.fetch!(opts, :logger)
 
-    log_before_request_result = log_before_request(api_provider, request, logger, opts)
+    log_before_request_result = log_before_request(api_service_name, request, logger, opts)
 
     request
     |> do_send_request(finch_instance, opts)
@@ -137,14 +148,14 @@ defmodule AntlHttpClient do
     end
   end
 
-  defp log_before_request(api_provider, request, :app_recorder, opts) do
-    build_outgoing_request_create_params(api_provider, request, opts)
+  defp log_before_request(api_service_name, request, :app_recorder, opts) do
+    build_outgoing_request_create_params(api_service_name, request, opts)
     |> OutgoingRequests.record_outgoing_request!()
   end
 
-  defp log_before_request(api_provider, request, Logger, opts) do
-    build_outgoing_request_create_params(api_provider, request, opts)
-    |> tap(&Logger.debug("#{String.capitalize(api_provider)}Client request:, #{inspect(&1)}"))
+  defp log_before_request(api_service_name, request, Logger, opts) do
+    build_outgoing_request_create_params(api_service_name, request, opts)
+    |> tap(&Logger.debug("#{String.capitalize(api_service_name)}Client request:, #{inspect(&1)}"))
   end
 
   defp log_after_request(response, outgoing_request, :app_recorder, opts) do
@@ -161,24 +172,24 @@ defmodule AntlHttpClient do
     )
   end
 
-  defp build_outgoing_request_create_params(api_provider, request, opts) do
-    obfuscate_keys = Keyword.get(opts, :obfuscate_keys, [])
+  defp build_outgoing_request_create_params(api_service_name, request, opts) do
+    obfuscate_keys = Keyword.get(opts, :obfuscate_request_keys, [])
 
     obfuscate_request = obfuscate_request(request, obfuscate_keys)
 
     %{
-      destination: "#{api_provider}",
+      destination: "#{api_service_name}",
       request_body: obfuscate_request.request_body,
       request_headers: obfuscate_request.request_headers,
       request_method: "#{request.request_method}",
       request_url: obfuscate_request.request_url,
       requested_at: obfuscate_request.requested_at,
-      source: "#{api_provider}_client"
+      source: "#{api_service_name}_client"
     }
   end
 
   defp build_outgoing_request_update_params(response, opts) do
-    obfuscate_keys = Keyword.get(opts, :obfuscate_keys, [])
+    obfuscate_keys = Keyword.get(opts, :obfuscate_response_keys, [])
     obfuscated_response = obfuscate_response(response, obfuscate_keys)
 
     %{
@@ -218,6 +229,8 @@ defmodule AntlHttpClient do
   defp encode!("application/json", body), do: Jason.encode!(body)
   defp encode!("application/x-www-form-urlencoded", body), do: URI.encode_query(body, :rfc3986)
 
+  defp obfuscate(data, []), do: data
+
   defp obfuscate(data, obfuscate_keys) when is_map(data) do
     Map.new(data, fn
       {key, nil} ->
@@ -234,6 +247,9 @@ defmodule AntlHttpClient do
 
       {key, val} when is_binary(val) or is_integer(val) ->
         {key, if(key in obfuscate_keys, do: obfuscate_value(val), else: val)}
+
+      {key, val} when is_boolean(val) ->
+        {key, val}
     end)
   end
 

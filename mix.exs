@@ -1,7 +1,7 @@
 defmodule AntlHttpClient.MixProject do
   use Mix.Project
 
-  @version "0.1.2"
+  @version "0.2.0"
 
   def project do
     [
@@ -26,11 +26,9 @@ defmodule AntlHttpClient.MixProject do
 
   defp deps do
     [
-      {:finch, "~> 0.13.0"},
+      {:finch, "~> 0.16.0"},
       {:bypass, "~> 2.1.0", only: :test},
-      {:app_recorder, "~> 0.4", [env: :prod, hex: "app_recorder", repo: "hexpm"]},
-      {:antl_utils_ecto, "~> 2.8"},
-      {:antl_utils_elixir, "~> 1.4"}
+      {:app_recorder, "~> 0.4", [env: :prod, hex: "app_recorder", repo: "hexpm"]}
     ]
   end
 
