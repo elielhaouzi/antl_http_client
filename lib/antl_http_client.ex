@@ -2,7 +2,6 @@ defmodule AntlHttpClient do
   @moduledoc false
 
   require Logger
-  alias AppRecorder.OutgoingRequests
 
   @default_receive_timeout 50_000
   @default_logger Logger
@@ -148,9 +147,11 @@ defmodule AntlHttpClient do
     end
   end
 
-  defp log_before_request(api_service_name, request, :app_recorder, opts) do
-    build_outgoing_request_create_params(api_service_name, request, opts)
-    |> OutgoingRequests.record_outgoing_request!()
+  defp log_before_request(api_service_name, request, log_function, opts)
+       when is_function(log_function, 1) do
+    log_function.(
+      {:before, build_outgoing_request_create_params(api_service_name, request, opts)}
+    )
   end
 
   defp log_before_request(api_service_name, request, Logger, opts) do
@@ -158,9 +159,11 @@ defmodule AntlHttpClient do
     |> tap(&Logger.debug("#{String.capitalize(api_service_name)}Client request:, #{inspect(&1)}"))
   end
 
-  defp log_after_request(response, outgoing_request, :app_recorder, opts) do
-    build_outgoing_request_update_params(response, opts)
-    |> then(&OutgoingRequests.update_outgoing_request!(outgoing_request, &1))
+  defp log_after_request(response, log_before_request_result, log_function, opts)
+       when is_function(log_function, 1) do
+    log_function.(
+      {:after, log_before_request_result, build_outgoing_request_update_params(response, opts)}
+    )
   end
 
   defp log_after_request(response, outgoing_request, Logger, opts) do
@@ -228,6 +231,7 @@ defmodule AntlHttpClient do
 
   defp encode!("application/json", body), do: Jason.encode!(body)
   defp encode!("application/x-www-form-urlencoded", body), do: URI.encode_query(body, :rfc3986)
+  defp encode!(_, body), do: body
 
   defp obfuscate(data, []), do: data
 
