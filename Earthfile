@@ -4,7 +4,6 @@ elixir-base:
     FROM elixir:1.12.2-alpine
     WORKDIR /app
     RUN apk add --no-progress --update openssh-client git build-base mysql-client
-    RUN mkdir -p -m 0600 ~/.ssh && ssh-keyscan gitlab.annatel.net >> ~/.ssh/known_hosts
     RUN mix local.rebar --force && mix local.hex --force
 
 deps:

@@ -1,6 +1,18 @@
 defmodule AntlHttpClientTest.HttpClientTest do
   use AntlHttpClientTest.Case
 
+  def log_function(args) do
+    case args do
+      {:before, outgoing_request} ->
+        send(self(), {:log_function_before, outgoing_request})
+
+        :result
+
+      {:after, log_before_request_result, outgoing_request} ->
+        send(self(), {:log_function_after, {log_before_request_result, outgoing_request}})
+    end
+  end
+
   describe "request/4" do
     test "get request with query params", %{bypass: bypass} do
       Bypass.expect_once(bypass, "GET", "/test", fn conn ->
@@ -53,6 +65,28 @@ defmodule AntlHttpClientTest.HttpClientTest do
                  method: :post,
                  resource: "#{base_url()}/test",
                  headers: %{"content-type" => "application/x-www-form-urlencoded"},
+                 body: params
+               })
+    end
+
+    test "other content-type", %{bypass: bypass} do
+      params = """
+      ------WebKitFormBoundaryLySv9NoZIbqvZnrL
+      Content-Disposition: form-data; name="name"
+
+      data
+      """
+
+      Bypass.expect_once(bypass, "POST", "/test", fn conn ->
+        {:ok, ^params, conn} = conn |> Plug.Conn.read_body()
+        Plug.Conn.resp(conn, 200, params)
+      end)
+
+      assert {:ok, _} =
+               AntlHttpClient.request(InsecureFinch, "api_service_name", %{
+                 method: :post,
+                 resource: "#{base_url()}/test",
+                 headers: %{"content-type" => "multipart/form-data"},
                  body: params
                })
     end
@@ -133,7 +167,7 @@ defmodule AntlHttpClientTest.HttpClientTest do
       Bypass.pass(bypass)
     end
 
-    test "when app_recorder is enabled, records outgoing requests with obfuscated_keys obfuscated",
+    test "when logger is a log_function, call the log function with obfuscated_keys obfuscated",
          %{bypass: bypass} do
       params = %{"data" => "data", "secret" => "secret"}
       response = %{"data" => "data", "secret" => "secret"}
@@ -154,14 +188,14 @@ defmodule AntlHttpClientTest.HttpClientTest do
                    headers: %{"authorization" => "token", "content-type" => "application/json"},
                    body: params
                  },
-                 logger: :app_recorder
+                 logger: &log_function/1
                )
 
-      assert_received {:insert, query}
-      assert query.fields[:request_body] == Jason.encode!(params)
+      assert_received {:log_function_before, outgoing_request}
+      assert outgoing_request[:request_body] == Jason.encode!(params)
 
-      assert_received {:update, query}
-      assert query.changes[:response_body] == inspect(response)
+      assert_received {:log_function_after, {:result, outgoing_request}}
+      assert outgoing_request[:response_body] == inspect(response)
     end
 
     test "recursively obfuscate request keys", %{bypass: bypass} do
@@ -185,17 +219,17 @@ defmodule AntlHttpClientTest.HttpClientTest do
                    body: params
                  },
                  obfuscate_request_keys: ["secret"],
-                 logger: :app_recorder
+                 logger: &log_function/1
                )
 
       obfuscated_request_body =
         Jason.encode!(%{"data" => %{"secret" => "se#{String.duplicate("*", 20)}"}})
 
-      assert_received {:insert, query}
-      assert query.fields[:request_body] == obfuscated_request_body
+      assert_received {:log_function_before, outgoing_request}
+      assert outgoing_request[:request_body] == obfuscated_request_body
 
-      assert_received {:update, query}
-      assert query.changes[:response_body] == inspect(response)
+      assert_received {:log_function_after, {:result, outgoing_request}}
+      assert outgoing_request[:response_body] == inspect(response)
     end
 
     test "recursively obfuscate response keys", %{bypass: bypass} do
@@ -219,15 +253,15 @@ defmodule AntlHttpClientTest.HttpClientTest do
                    body: params
                  },
                  obfuscate_response_keys: ["secret"],
-                 logger: :app_recorder
+                 logger: &log_function/1
                )
 
-      assert_received {:insert, query}
-      assert query.fields[:request_body] == Jason.encode!(params)
+      assert_received {:log_function_before, outgoing_request}
+      assert outgoing_request[:request_body] == Jason.encode!(params)
 
       obfuscated_response_body = %{"data" => %{"secret" => "se#{String.duplicate("*", 20)}"}}
-      assert_received {:update, query}
-      assert query.changes[:response_body] == inspect(obfuscated_response_body)
+      assert_received {:log_function_after, {:result, outgoing_request}}
+      assert outgoing_request[:response_body] == inspect(obfuscated_response_body)
     end
 
     test "obfuscate nil values, binary, integer and boolean", %{bypass: bypass} do
@@ -258,7 +292,7 @@ defmodule AntlHttpClientTest.HttpClientTest do
                    body: params
                  },
                  obfuscate_request_keys: ["binary", "empty_binary", "nil", "integer", "boolean"],
-                 logger: :app_recorder
+                 logger: &log_function/1
                )
 
       obfuscated_request_body =
@@ -272,8 +306,8 @@ defmodule AntlHttpClientTest.HttpClientTest do
           }
         })
 
-      assert_received {:insert, query}
-      assert query.fields[:request_body] == obfuscated_request_body
+      assert_received {:log_function_before, outgoing_request}
+      assert outgoing_request[:request_body] == obfuscated_request_body
     end
 
     test "obfuscate supports list", %{bypass: bypass} do
@@ -296,17 +330,17 @@ defmodule AntlHttpClientTest.HttpClientTest do
                    body: params
                  },
                  obfuscate_request_keys: ["secret"],
-                 logger: :app_recorder
+                 logger: &log_function/1
                )
 
       obfuscated_request_body =
         Jason.encode!(%{"data" => [%{"secret" => "se#{String.duplicate("*", 20)}"}]})
 
-      assert_received {:insert, query}
-      assert query.fields[:request_body] == obfuscated_request_body
+      assert_received {:log_function_before, outgoing_request}
+      assert outgoing_request[:request_body] == obfuscated_request_body
     end
 
-    test "when the enable_logging_via_app_recorder? is disabled, do not record the outgoing requests",
+    test "when the logger is Logger, the log_function does not called",
          %{bypass: bypass} do
       Bypass.expect_once(bypass, "POST", "/", fn conn ->
         Plug.Conn.resp(conn, 200, "{}")
@@ -320,7 +354,8 @@ defmodule AntlHttpClientTest.HttpClientTest do
                  logger: Logger
                )
 
-      refute_received {:insert, _}
+      refute_received {:log_function_before, _}
+      refute_received {:log_function_after, _}
     end
 
     test "ssl" do
@@ -334,13 +369,13 @@ defmodule AntlHttpClientTest.HttpClientTest do
                    headers: headers(),
                    body: %{}
                  },
-                 logger: :app_recorder,
+                 logger: &log_function/1,
                  allow_insecure?: false
                )
 
       assert error =~ ~r/CLIENT ALERT: Fatal - Unknown CA/
-      assert_received {:update, query}
-      %{client_error_message: client_error_message} = query.changes |> Enum.into(%{})
+      assert_received {:log_function_after, {:result, outgoing_request}}
+      assert %{client_error_message: client_error_message} = outgoing_request
       assert client_error_message =~ ~r/CLIENT ALERT: Fatal - Unknown CA/
     end
 
@@ -354,11 +389,11 @@ defmodule AntlHttpClientTest.HttpClientTest do
                  headers: headers(),
                  body: %{}
                },
-               logger: :app_recorder
+               logger: &log_function/1
              )
 
-      assert_received {:update, query}
-      %{success: true} = query.changes |> Enum.into(%{})
+      assert_received {:log_function_after, {:result, outgoing_request}}
+      assert %{success: true} = outgoing_request
     end
   end
 end
