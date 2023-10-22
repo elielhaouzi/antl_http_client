@@ -46,7 +46,7 @@ defmodule AntlHttpClient do
             required(:method) => atom,
             required(:resource) => binary,
             required(:headers) => map,
-            optional(:body) => map,
+            optional(:body) => map | tuple,
             optional(:query_params) => map
           },
           keyword
@@ -104,7 +104,7 @@ defmodule AntlHttpClient do
       request.request_method,
       request.request_url,
       Map.to_list(request.request_headers),
-      encode!(request.request_headers["content-type"], request.request_body)
+      build_request_body(request.request_headers["content-type"], request.request_body)
     )
     |> Finch.request(finch_instance, receive_timeout: receive_timeout)
     |> case do
@@ -178,7 +178,10 @@ defmodule AntlHttpClient do
   defp build_outgoing_request_create_params(api_service_name, request, opts) do
     obfuscate_keys = Keyword.get(opts, :obfuscate_request_keys, [])
 
-    obfuscate_request = obfuscate_request(request, obfuscate_keys)
+    obfuscate_request =
+      if can_obfuscate_request_body?(request.request_body),
+        do: obfuscate_request(request, obfuscate_keys),
+        else: request
 
     %{
       destination: "#{api_service_name}",
@@ -229,9 +232,15 @@ defmodule AntlHttpClient do
 
   defp obfuscate_response(response, _obfuscate_keys), do: response
 
+  defp build_request_body(_, {:stream, body_stream}), do: {:stream, body_stream}
+  defp build_request_body(content_type, request_body), do: encode!(content_type, request_body)
+
   defp encode!("application/json", body), do: Jason.encode!(body)
   defp encode!("application/x-www-form-urlencoded", body), do: URI.encode_query(body, :rfc3986)
   defp encode!(_, body), do: body
+
+  defp can_obfuscate_request_body?({:stream, _}), do: false
+  defp can_obfuscate_request_body?(_), do: true
 
   defp obfuscate(data, []), do: data
 
