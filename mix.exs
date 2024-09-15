@@ -26,7 +26,7 @@ defmodule AntlHttpClient.MixProject do
 
   defp deps do
     [
-      {:finch, "~> 0.16.0"},
+      {:finch, "~> 0.16"},
       {:bypass, "~> 2.1.0", only: :test},
       {:jason, "~> 1.4"}
     ]
