@@ -120,7 +120,7 @@ defmodule AntlHttpClient do
           response_headers: Map.new(headers),
           response_http_status: status,
           responded_at: DateTime.utc_now(),
-          success: status in 200..299
+          success: status in 200..299 or status in [301, 302, 303, 307, 308]
         }
 
       {:error, error} ->
@@ -130,8 +130,13 @@ defmodule AntlHttpClient do
 
   defp handle_response(%{} = response) do
     case response do
-      %{success: true, response_body: response_body} ->
+      %{success: true, response_http_status: status, response_body: response_body}
+      when status in 200..299 ->
         {:ok, response_body}
+
+      %{success: true, response_http_status: status, response_headers: response_headers}
+      when status in [301, 302, 303, 307, 308] ->
+        {:ok, response_headers}
 
       %{client_error_message: client_error_message} when is_binary(client_error_message) ->
         {:error, client_error_message}
