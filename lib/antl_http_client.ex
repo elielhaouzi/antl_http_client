@@ -36,6 +36,21 @@ defmodule AntlHttpClient do
     }
   end
 
+  def post(finch_instance, api_service_name, params, opts \\ []),
+    do: request(finch_instance, api_service_name, params |> Map.put(:method, :post), opts)
+
+  def get(finch_instance, api_service_name, params, opts \\ []),
+    do: request(finch_instance, api_service_name, params |> Map.put(:method, :get), opts)
+
+  def delete(finch_instance, api_service_name, params, opts \\ []),
+    do: request(finch_instance, api_service_name, params |> Map.put(:method, :delete), opts)
+
+  def put(finch_instance, api_service_name, params, opts \\ []),
+    do: request(finch_instance, api_service_name, params |> Map.put(:method, :put), opts)
+
+  def patch(finch_instance, api_service_name, params, opts \\ []),
+    do: request(finch_instance, api_service_name, params |> Map.put(:method, :patch), opts)
+
   @doc """
   Helper to send a request via the finch instance
   """
@@ -46,7 +61,7 @@ defmodule AntlHttpClient do
             required(:method) => atom,
             required(:resource) => binary,
             required(:headers) => map,
-            optional(:body) => map | tuple,
+            optional(:body) => map | tuple | nil,
             optional(:query_params) => map
           },
           keyword
@@ -144,11 +159,11 @@ defmodule AntlHttpClient do
       %{response_http_status: status, response_body: response_body} when status in 400..499 ->
         {:error, {status, response_body}}
 
-      %{response_http_status: status} when status >= 500 ->
-        {:error, "server_error"}
+      %{response_http_status: status, response_body: response_body} when status >= 500 ->
+        {:error, {status, response_body}}
 
       _ ->
-        {:error, "unknown_error"}
+        {:error, {"unknown_error", inspect(response[:response_body])}}
     end
   end
 
@@ -175,7 +190,7 @@ defmodule AntlHttpClient do
     build_outgoing_request_update_params(response, opts)
     |> tap(
       &Logger.debug(
-        "#{String.capitalize(outgoing_request.destination)}Client request:, #{inspect(&1)}"
+        "#{String.capitalize(outgoing_request.destination)}Client response:, #{inspect(&1)}"
       )
     )
   end
@@ -238,6 +253,7 @@ defmodule AntlHttpClient do
   defp obfuscate_response(response, _obfuscate_keys), do: response
 
   defp build_request_body(_, {:stream, body_stream}), do: {:stream, body_stream}
+  defp build_request_body(_, nil), do: nil
   defp build_request_body(content_type, request_body), do: encode!(content_type, request_body)
 
   defp encode!("application/json", body), do: Jason.encode!(body)

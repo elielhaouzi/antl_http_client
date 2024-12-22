@@ -29,6 +29,21 @@ defmodule AntlHttpClientTest.HttpClientTest do
                })
     end
 
+    test "get without request body", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "GET", "/test", fn conn ->
+        assert {:ok, "", conn} = conn |> Plug.Conn.read_body()
+        Plug.Conn.resp(conn, 200, "{}")
+      end)
+
+      assert {:ok, _} =
+               AntlHttpClient.request(InsecureFinch, "api_service_name", %{
+                 method: :get,
+                 resource: "#{base_url()}/test",
+                 headers: %{"content-type" => "application/json"},
+                 body: nil
+               })
+    end
+
     test "content-type: application/json", %{bypass: bypass} do
       params = %{"data" => "data"}
 
@@ -124,7 +139,7 @@ defmodule AntlHttpClientTest.HttpClientTest do
         Plug.Conn.resp(conn, 500, "internal server error")
       end)
 
-      assert {:error, "server_error"} ==
+      assert {:error, {500, "internal server error"}} ==
                AntlHttpClient.request(
                  InsecureFinch,
                  "api_service_name",
@@ -394,6 +409,71 @@ defmodule AntlHttpClientTest.HttpClientTest do
 
       assert_received {:log_function_after, {:result, outgoing_request}}
       assert %{success: true} = outgoing_request
+    end
+
+    test "get", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "GET", "/test", fn conn ->
+        Plug.Conn.resp(conn, 200, "{}")
+      end)
+
+      assert {:ok, _} =
+               AntlHttpClient.request(InsecureFinch, "api_service_name", %{
+                 method: :get,
+                 resource: "#{base_url()}/test",
+                 headers: %{"content-type" => "application/json"}
+               })
+    end
+
+    test "post", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "POST", "/test", fn conn ->
+        Plug.Conn.resp(conn, 200, "{}")
+      end)
+
+      assert {:ok, _} =
+               AntlHttpClient.request(InsecureFinch, "api_service_name", %{
+                 method: :post,
+                 resource: "#{base_url()}/test",
+                 headers: %{"content-type" => "application/json"}
+               })
+    end
+
+    test "put", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "PUT", "/test", fn conn ->
+        Plug.Conn.resp(conn, 200, "{}")
+      end)
+
+      assert {:ok, _} =
+               AntlHttpClient.request(InsecureFinch, "api_service_name", %{
+                 method: :put,
+                 resource: "#{base_url()}/test",
+                 headers: %{"content-type" => "application/json"}
+               })
+    end
+
+    test "patch", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "PATCH", "/test", fn conn ->
+        Plug.Conn.resp(conn, 200, "{}")
+      end)
+
+      assert {:ok, _} =
+               AntlHttpClient.request(InsecureFinch, "api_service_name", %{
+                 method: :patch,
+                 resource: "#{base_url()}/test",
+                 headers: %{"content-type" => "application/json"}
+               })
+    end
+
+    test "delete", %{bypass: bypass} do
+      Bypass.expect_once(bypass, "DELETE", "/test", fn conn ->
+        Plug.Conn.resp(conn, 200, "{}")
+      end)
+
+      assert {:ok, _} =
+               AntlHttpClient.request(InsecureFinch, "api_service_name", %{
+                 method: :delete,
+                 resource: "#{base_url()}/test",
+                 headers: %{"content-type" => "application/json"}
+               })
     end
   end
 end

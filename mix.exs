@@ -1,13 +1,13 @@
 defmodule AntlHttpClient.MixProject do
   use Mix.Project
 
-  @version "0.3.1"
+  @version "0.5.1"
 
   def project do
     [
       app: :antl_http_client,
-      version: version(),
       elixir: "~> 1.12",
+      version: version(),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       aliases: aliases(),
@@ -26,7 +26,7 @@ defmodule AntlHttpClient.MixProject do
 
   defp deps do
     [
-      {:finch, "~> 0.16"},
+      {:finch, "~> 0.19"},
       {:bypass, "~> 2.1.0", only: :test},
       {:jason, "~> 1.4"}
     ]
